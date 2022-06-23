@@ -1,3 +1,4 @@
+use egui_wgpu::renderer::{RenderPass, ScreenDescriptor};
 use std::borrow::Cow;
 use wgpu;
 use winit::{
@@ -5,7 +6,6 @@ use winit::{
     event_loop::{ControlFlow, EventLoop},
     window::{Window, WindowBuilder},
 };
-use egui_wgpu::renderer::{RenderPass, ScreenDescriptor};
 
 const WGSL_SHADERS: &str = "
 struct VertexInput {
@@ -35,7 +35,7 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
     let window_size = window.inner_size();
     let instance = wgpu::Instance::new(wgpu::Backends::PRIMARY);
     let surface = unsafe { instance.create_surface(&window) };
-    
+
     let adapter = instance
         .request_adapter(&wgpu::RequestAdapterOptions {
             power_preference: wgpu::PowerPreference::HighPerformance,
@@ -44,7 +44,7 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
         })
         .await
         .expect("Failed to find a WebGPU adapter");
-        let surface_format = surface.get_preferred_format(&adapter).unwrap();
+    let surface_format = surface.get_preferred_format(&adapter).unwrap();
     let (device, queue) = adapter
         .request_device(
             &wgpu::DeviceDescriptor {
@@ -224,24 +224,19 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
                 let mut encoder =
                     device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
 
-           // Upload all resources for the GPU.
-           let screen_descriptor = ScreenDescriptor {
-            size_in_pixels: [
-                window_size.width,
-                window_size.height,
-            ],
-            pixels_per_point: window.scale_factor() as f32,
-        };
+                // Upload all resources for the GPU.
+                let screen_descriptor = ScreenDescriptor {
+                    size_in_pixels: [window_size.width, window_size.height],
+                    pixels_per_point: window.scale_factor() as f32,
+                };
 
-        for (id, image_delta) in &output.textures_delta.set {
-            egui_rpass.update_texture(&device, &queue, *id, image_delta);
-        }
-        for id in &output.textures_delta.free {
-            egui_rpass.free_texture(id);
-        }
-        egui_rpass.update_buffers(&device, &queue, &paint_jobs, &screen_descriptor);
-
-
+                for (id, image_delta) in &output.textures_delta.set {
+                    egui_rpass.update_texture(&device, &queue, *id, image_delta);
+                }
+                for id in &output.textures_delta.free {
+                    egui_rpass.free_texture(id);
+                }
+                egui_rpass.update_buffers(&device, &queue, &paint_jobs, &screen_descriptor);
 
                 {
                     let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -273,13 +268,11 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
                         render_pass.draw(0..3, 0..1);
                     }
 
-                    egui_rpass
-                    .execute_with_renderpass(
+                    egui_rpass.execute_with_renderpass(
                         &mut render_pass,
                         &paint_jobs,
-                        &screen_descriptor
+                        &screen_descriptor,
                     );
-
                 }
                 queue.submit(Some(encoder.finish()));
                 output_frame.present();
