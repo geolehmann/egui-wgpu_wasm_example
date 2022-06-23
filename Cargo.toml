@@ -8,7 +8,7 @@ edition = "2021"
 wgpu = "0.12"
 winit = "0.26"
 futures = "0.3"
-egui = "0.18.1"
+egui = { git = "https://github.com/geolehmann/egui" }
 egui-wgpu = { git = "https://github.com/geolehmann/egui", features = ["winit"] }
 egui-winit = { git = "https://github.com/geolehmann/egui", default-features = false}
 
