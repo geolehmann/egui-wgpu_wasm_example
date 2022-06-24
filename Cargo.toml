@@ -1,5 +1,5 @@
 [package]
-name = "wgpu-test"
+name = "K4"
 version = "0.1.0"
 authors = ["Christian Lehmann <clehmann@ucm.es>"]
 edition = "2021"
@@ -12,6 +12,7 @@ futures = "0.3"
 egui = { git = "https://github.com/geolehmann/egui" }
 egui-wgpu = { git = "https://github.com/geolehmann/egui", features = ["winit"] }
 egui-winit = { git = "https://github.com/geolehmann/egui", default-features = false}
+image = { version = "0.24", default-features = false, features = ["png"] }
 
 [target.wasm32-unknown-unknown.dependencies]
 console_error_panic_hook = "0.1"

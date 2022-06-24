@@ -7,6 +7,9 @@ use winit::{
     window::{Window, WindowBuilder},
 };
 
+const INITIAL_WIDTH: u32 = 1422;
+const INITIAL_HEIGHT: u32 = 700;
+
 const WGSL_SHADERS: &str = "
 struct VertexInput {
     @location(0) position: vec4<f32>,
@@ -32,8 +35,11 @@ fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
 ";
 
 async fn run(event_loop: EventLoop<()>, window: Window) {
+
     let mut window_size = window.inner_size();
+
     let instance = wgpu::Instance::new(wgpu::Backends::PRIMARY);
+
     let surface = unsafe { instance.create_surface(&window) };
 
     let adapter = instance
@@ -44,7 +50,9 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
         })
         .await
         .expect("Failed to find a WebGPU adapter");
+
     let surface_format = surface.get_supported_formats(&adapter)[0];
+
     let (device, queue) = adapter
         .request_device(
             &wgpu::DeviceDescriptor {
@@ -57,8 +65,26 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
         .await
         .expect("Failed to create device");
 
+    // Chrome Canary complains about unknown swapchain format
+    #[cfg(target_arch = "wasm32")]
+    let swap_chain_format = wgpu::TextureFormat::Bgra8Unorm;
+    #[cfg(not(target_arch = "wasm32"))]
+    let swap_chain_format = wgpu::TextureFormat::Bgra8UnormSrgb;
+
+    surface.configure(
+        &device,
+        &wgpu::SurfaceConfiguration {
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            format: swap_chain_format,
+            width: window_size.width,
+            height: window_size.height,
+            present_mode: wgpu::PresentMode::Fifo,
+        },
+    );
+
     let mut state = egui_winit::State::new(&event_loop);
     let context = egui::Context::default();
+    context.set_pixels_per_point(window.scale_factor() as f32);
     let mut egui_rpass = RenderPass::new(&device, surface_format, 1);
 
     let vertex_module = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
@@ -130,23 +156,6 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
         push_constant_ranges: &[],
     });
 
-    // Chrome Canary complains about unknown swapchain format
-    #[cfg(target_arch = "wasm32")]
-    let swap_chain_format = wgpu::TextureFormat::Bgra8Unorm;
-    #[cfg(not(target_arch = "wasm32"))]
-    let swap_chain_format = wgpu::TextureFormat::Bgra8UnormSrgb;
-
-    surface.configure(
-        &device,
-        &wgpu::SurfaceConfiguration {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            format: swap_chain_format,
-            width: window_size.width,
-            height: window_size.height,
-            present_mode: wgpu::PresentMode::Fifo,
-        },
-    );
-
     let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: None,
         layout: Some(&pipeline_layout),
@@ -179,19 +188,14 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
             entry_point: "fragment_main",
             targets: &[wgpu::ColorTargetState {
                 format: swap_chain_format,
-                blend: None,
+                blend: Some(wgpu::BlendState::ALPHA_BLENDING),
                 write_mask: wgpu::ColorWrites::ALL,
             }],
         }),
         multiview: None,
     });
 
-    let clear_color = wgpu::Color {
-        r: 0.3,
-        g: 0.3,
-        b: 0.3,
-        a: 0.0,
-    };
+    let clear_color = wgpu::Color::TRANSPARENT;
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Poll;
@@ -211,13 +215,16 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
                     if size.width > 0 && size.height > 0 {
                         window_size.width = size.width;
                         window_size.height = size.height;
+                        println!("scale factor: {:?}", window.scale_factor());
+                        println!("w/h: {:?} {:?}", window_size.width, window_size.height);
+                        println!("used size: {:?} {:?}", context.used_size().x, context.used_size().y);
                         surface.configure(
                             &device,
                             &wgpu::SurfaceConfiguration {
                                 usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
                                 format: swap_chain_format,
-                                width: size.width,
-                                height: size.height,
+                                width: window_size.width,
+                                height: window_size.height,
                                 present_mode: wgpu::PresentMode::Fifo,
                             },
                         );
@@ -227,11 +234,11 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
                     //println!("File dropped: {:?}", file.as_path().display().to_string());
                     // do model loading here
                 }
-                /*WindowEvent::MouseInput { button, .. }
-                    if button == MouseButton::Left =>
+                WindowEvent::CursorMoved { position, .. } =>
                 {
-                    buttonstate = "Left  button clicked!".to_string();
-                }*/
+                   println!("pos_x: {:?} pos_y: {:?}", position.x, position.y);
+                   /*if context.is_pointer_over_area()*/ { state.on_event(&context, &event); }
+                }
                 _ => {
                     // forward events to egui
                     state.on_event(&context, &event);
@@ -246,15 +253,24 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
                     .create_view(&wgpu::TextureViewDescriptor::default());
 
                 let input = state.take_egui_input(&window);
+
                 context.begin_frame(input);
-
                 egui::Window::new("K4 Kahlberg").show(&context, |ui| {
-                    ui.label("Hello world!");
-                    ui.button("Settings");
+                    ui.heading("Objects");
+                    ui.label("Currently there are no objects here.");
+                    ui.separator();
+                    ui.heading("Settings");
+                    ui.label("Show fog");
+                    ui.label("Show crosshair");
                     ui.label("See https://github.com/emilk/egui for how to make other UI elements");
+                    if ui.button("Switch to light mode").clicked() {
+                        //egui::widgets::global_dark_light_mode_switch(ui);
+                        context.set_visuals(egui::Visuals::light());
+                    }
+                    
                 });
-
                 let output = context.end_frame();
+
                 let paint_jobs = context.tessellate(output.shapes);
 
                 let mut encoder =
@@ -321,8 +337,12 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
 fn main() {
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
-        .with_maximized(true)
         .with_transparent(true)
+        .with_title("K4 Kahlberg")
+        .with_inner_size(winit::dpi::PhysicalSize {
+            width: INITIAL_WIDTH,
+            height: INITIAL_HEIGHT,
+        })
         .build(&event_loop)
         .unwrap();
     #[cfg(not(target_arch = "wasm32"))]
