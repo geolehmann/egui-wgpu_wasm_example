@@ -2,22 +2,22 @@ use egui_wgpu::renderer::{RenderPass, ScreenDescriptor};
 use std::borrow::Cow;
 use wgpu;
 use winit::{
-    event::{Event, VirtualKeyCode, WindowEvent},
+    event::{Event, MouseButton, VirtualKeyCode, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::{Window, WindowBuilder},
 };
 
 const WGSL_SHADERS: &str = "
 struct VertexInput {
-    @location(0) position: vec4<f32>;
-    @location(1) color: vec4<f32>;
+    @location(0) position: vec4<f32>,
+    @location(1) color: vec4<f32>,
 };
 struct VertexOutput {
-    @builtin(position) position: vec4<f32>;
-    @location(0) color: vec4<f32>;
+    @builtin(position) position: vec4<f32>,
+    @location(0) color: vec4<f32>,
 };
 
-@stage(vertex)
+@vertex
 fn vertex_main(vert: VertexInput) -> VertexOutput {
     var out: VertexOutput;
     out.color = vert.color;
@@ -25,14 +25,14 @@ fn vertex_main(vert: VertexInput) -> VertexOutput {
     return out;
 };
 
-@stage(fragment)
+@fragment
 fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
     return vec4<f32>(in.color);
 }
 ";
 
 async fn run(event_loop: EventLoop<()>, window: Window) {
-    let window_size = window.inner_size();
+    let mut window_size = window.inner_size();
     let instance = wgpu::Instance::new(wgpu::Backends::PRIMARY);
     let surface = unsafe { instance.create_surface(&window) };
 
@@ -44,7 +44,7 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
         })
         .await
         .expect("Failed to find a WebGPU adapter");
-    let surface_format = surface.get_preferred_format(&adapter).unwrap();
+    let surface_format = surface.get_supported_formats(&adapter)[0];
     let (device, queue) = adapter
         .request_device(
             &wgpu::DeviceDescriptor {
@@ -130,7 +130,11 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
         push_constant_ranges: &[],
     });
 
+    // Chrome Canary complains about unknown swapchain format
+    #[cfg(target_arch = "wasm32")]
     let swap_chain_format = wgpu::TextureFormat::Bgra8Unorm;
+    #[cfg(not(target_arch = "wasm32"))]
+    let swap_chain_format = wgpu::TextureFormat::Bgra8UnormSrgb;
 
     surface.configure(
         &device,
@@ -186,7 +190,7 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
         r: 0.3,
         g: 0.3,
         b: 0.3,
-        a: 1.0,
+        a: 0.0,
     };
 
     event_loop.run(move |event, _, control_flow| {
@@ -200,7 +204,38 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
                 {
                     *control_flow = ControlFlow::Exit
                 }
-                _ => (),
+                WindowEvent::Resized(size) => {
+                    // Resize with 0 width and height is used by winit to signal a minimize event on Windows.
+                    // See: https://github.com/rust-windowing/winit/issues/208
+                    // This solves an issue where the app would panic when minimizing on Windows.
+                    if size.width > 0 && size.height > 0 {
+                        window_size.width = size.width;
+                        window_size.height = size.height;
+                        surface.configure(
+                            &device,
+                            &wgpu::SurfaceConfiguration {
+                                usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+                                format: swap_chain_format,
+                                width: size.width,
+                                height: size.height,
+                                present_mode: wgpu::PresentMode::Fifo,
+                            },
+                        );
+                    }
+                }
+                WindowEvent::DroppedFile(file) => {
+                    //println!("File dropped: {:?}", file.as_path().display().to_string());
+                    // do model loading here
+                }
+                /*WindowEvent::MouseInput { button, .. }
+                    if button == MouseButton::Left =>
+                {
+                    buttonstate = "Left  button clicked!".to_string();
+                }*/
+                _ => {
+                    // forward events to egui
+                    state.on_event(&context, &event);
+                }
             },
             Event::MainEventsCleared => {
                 let output_frame = surface
@@ -213,8 +248,9 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
                 let input = state.take_egui_input(&window);
                 context.begin_frame(input);
 
-                egui::Window::new("Window").show(&context, |ui| {
+                egui::Window::new("K4 Kahlberg").show(&context, |ui| {
                     ui.label("Hello world!");
+                    ui.button("Settings");
                     ui.label("See https://github.com/emilk/egui for how to make other UI elements");
                 });
 
@@ -284,7 +320,11 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
 
 fn main() {
     let event_loop = EventLoop::new();
-    let window = WindowBuilder::new().build(&event_loop).unwrap();
+    let window = WindowBuilder::new()
+        .with_maximized(true)
+        .with_transparent(true)
+        .build(&event_loop)
+        .unwrap();
     #[cfg(not(target_arch = "wasm32"))]
     {
         futures::executor::block_on(run(event_loop, window));

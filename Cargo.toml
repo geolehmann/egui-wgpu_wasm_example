@@ -1,11 +1,12 @@
 [package]
 name = "wgpu-test"
 version = "0.1.0"
-authors = ["Will Usher <will@willusher.io>"]
+authors = ["Christian Lehmann <clehmann@ucm.es>"]
 edition = "2021"
 
 [dependencies]
-wgpu = "0.12"
+#wgpu = "0.12"
+wgpu = { git = "https://github.com/gfx-rs/wgpu" }
 winit = "0.26"
 futures = "0.3"
 egui = { git = "https://github.com/geolehmann/egui" }
