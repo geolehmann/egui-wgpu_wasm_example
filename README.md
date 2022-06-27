@@ -1,7 +1,13 @@
 # egui-wgpu_wasm_example
 This is a minimal example how to use the egui-wgpu crate for a wasm32 target. Based on https://github.com/zhouhang95/egui-winit-wgpu and https://github.com/Twinklebear/wgpu-rs-test.
 
-Be sure to set 
+Prerequisites:
+```
+rustup target add wasm32-unknown-unknown
+cargo install wasm-bindgen-cli
+cargo update -p wasm-bindgen
+```
+Also be sure to set 
 ```
 [target.wasm32-unknown-unknown]
 rustflags = "--cfg=web_sys_unstable_apis"
