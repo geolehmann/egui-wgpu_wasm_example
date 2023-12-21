@@ -1,22 +1,33 @@
 [package]
-name = "K4"
+name = "egui-wgpu-wasm"
 version = "0.1.0"
 authors = ["Christian Lehmann <clehmann@ucm.es>"]
 edition = "2021"
 
 [dependencies]
-#wgpu = "0.12"
-wgpu = { git = "https://github.com/gfx-rs/wgpu" }
-winit = "0.26"
+egui = "0.24"
+egui_extras = { version = "0.24.1", features = ["image"] }
+egui-wgpu = { version = "0.24.1", features = ["winit"] }
+egui-winit = { version = "0.24.1", default-features = false}
+wgpu = { version = "0.18.0", features = ["fragile-send-sync-non-atomic-wasm"] }
+winit = { version = "0.28", default-features = false }
+cfg-if = "1"
 futures = "0.3"
-egui = { git = "https://github.com/geolehmann/egui" }
-egui-wgpu = { git = "https://github.com/geolehmann/egui", features = ["winit"] }
-egui-winit = { git = "https://github.com/geolehmann/egui", default-features = false}
-image = { version = "0.24", default-features = false, features = ["png"] }
+pollster = "0.3"
+anyhow = "1.0"
+env_logger = "0.10"
+log = "0.4"
+image = { version = "0.24.5", default-features = false, features = ["png", "jpeg", "tiff", "bmp"] }
 
-[target.wasm32-unknown-unknown.dependencies]
+[target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = "0.1"
 console_log = "0.2"
-web-sys = "0.3"
+reqwest = { version = "0.11" }
+web-sys = {version = "0.3", features = ['DragEvent','DataTransfer', 'DataTransferItem','Event','File','FileList','DataTransferItemList', "Document",
+    "Window",
+    "Element",
+    "Location"] }
+wasm-bindgen = "0.2"
+js-sys = "0.3"
 wasm-bindgen-futures = "0.4"
 
